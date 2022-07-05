@@ -1,3 +1,4 @@
+from attr import has
 from .core import l  # Import logging
 from .core import *
 from .animation_helper import AnimationHelper
@@ -295,7 +296,7 @@ class BVTK_Node_MultiBlockLeaf(Node, BVTK_Node):
 # ----------------------------------------------------------------
 
 
-def get_number_list_from_basename(basename, extension):
+def get_list_from_basename(basename, extension):
     """Return a list of the number part of file names ending with
     extension. Argument basename includes absolute or relative
     directory path and a file name start part at the end.
@@ -307,6 +308,7 @@ def get_number_list_from_basename(basename, extension):
     """
     import os
     import re
+    import natsort
     sep = os.path.sep  # Path folder separator character
 
     # Get directory name and file name start part
@@ -330,50 +332,13 @@ def get_number_list_from_basename(basename, extension):
 
     for root, dirs, filenames in os.walk(dirname):
         for filename in filenames:
-            regex1 = rec1.search(filename)
-            if regex1:
-                name = regex1.group(1)
-                if name != filename_start_part:
-                    continue
-                extension = regex1.group(3)
-                if not filename.endswith(extension):
-                    continue
-                number = regex1.group(2)
-                numbers.append(str(number))
+            if "bounding" in filename:
+                continue
+            numbers.append(filename)
 
-    dir_and_filename_skeleton = dirname + sep + filename_start_part
-    numbers = sorted(numbers, key=int)
+    dir_and_filename_skeleton = dirname + sep
+    numbers = natsort.natsorted(numbers, key=lambda y: y.lower())
     return numbers, dir_and_filename_skeleton
-
-
-def update_timestep_in_filename(filename, time_index):
-    """Return file name, where time definition integer string (assumed to
-    be located just before dot at end of file name) has been replaced
-    to argument time step number
-    """
-    import re
-
-    # Regex to match base name, number and file extension parts
-    rec1 = re.compile(r"(.*?)(\d+)(\.\w+)$", re.M)
-    regex1 = rec1.search(filename)
-    if regex1:
-        basename = regex1.group(1)
-        extension = regex1.group(3)
-        numbers, dir_and_filename_skeleton = \
-            get_number_list_from_basename(basename, extension)
-
-        # Data is looped from beginning after last data file. Subtract
-        # index by one to make frame 1 correspond to first data file
-        n = len(numbers)
-        number = numbers[(time_index - 1) % n]
-
-        newname = dir_and_filename_skeleton + str(number) + extension
-        l.debug("Time index %d corresponds to %r" % (time_index, newname))
-        return newname
-
-    l.warning("No time steps detected for " + filename)
-    return filename
-
 
 class BVTK_Node_TimeSelector(Node, BVTK_Node):
     """VTK time management node for time variant data. Display time sets,
@@ -382,6 +347,19 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
 
     bl_idname = "BVTK_Node_TimeSelectorType"
     bl_label = "Time Selector"
+    files = None
+
+    def update_timestep_in_filename(self,filename, time_index):
+        """Return file name from a list
+        """
+        if not hasattr(self,"files"):
+            self.files = None
+        #if self.files is None:
+        self.files, self.filename_skeleton = get_list_from_basename(filename, ".vtk")
+        return self.filename_skeleton+self.files[time_index]
+
+
+
 
     def get_time_values(self, context=None):
         """Return list of time step values from VTK Executive or None if no
@@ -417,9 +395,10 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
             return None
         try:
             filename = input_node.m_FileName
-            newname = update_timestep_in_filename(filename, self.time_index)
+            newname = self.update_timestep_in_filename(filename, self.time_index)
             input_node.m_FileName = newname
         except Exception as ex:
+            print("BVTK Error: ", ex)
             pass
 
     def get_time_value(self):
@@ -445,7 +424,7 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
         self.outdate_vtk_status(context)
 
     time_index: bpy.props.IntProperty(
-        name="Time Index", default=1, update=time_index_update
+        name="Time Index", default=0, update=time_index_update
     )
     use_scene_time: bpy.props.BoolProperty(
         name="Use Scene Time", default=True, update=activate_scene_time
