@@ -328,12 +328,14 @@ def get_list_from_basename(basename, extension):
     # l.debug("File name start part: %r" % filename_start_part)
 
     numbers = []
-    rec1 = re.compile(r"(.*?)(\d+)(\.\w+)$", re.M)
 
     for root, dirs, filenames in os.walk(dirname):
         for filename in filenames:
             if "bounding" in filename:
                 continue
+            # Bug, check here if filename matches the file name start part
+            #if not re.split("\d+",basename)[0] in filename:
+            #    continue
             numbers.append(filename)
 
     dir_and_filename_skeleton = dirname + sep

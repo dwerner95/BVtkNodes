@@ -1,8 +1,19 @@
 # BVTKNodes
 [![CI Tests](https://github.com/tkeskita/BVtkNodes/actions/workflows/blender-tests.yml/badge.svg)](https://github.com/tkeskita/BVtkNodes/actions/workflows/blender-tests.yml) [![](https://readthedocs.org/projects/bvtknodes/badge/?version=latest)](https://bvtknodes.readthedocs.io) [![](https://img.shields.io/github/license/tkeskita/BVtkNodes)](https://github.com/tkeskita/BVtkNodes/blob/master/LICENSE) [![](https://img.shields.io/badge/Download-.zip-blue)](https://github.com/tkeskita/BVtkNodes/archive/master.zip) ![](https://img.shields.io/github/stars/tkeskita/BVtkNodes?style=social)
 
-**This version has a changed time selector for LIGGGHTS simulations.** Install natsort in the local blender-python!!
+**This version has a changed time selector for LIGGGHTS simulations.** Install natsort and vtk in the local blender-python!! See instructions [here](https://github.com/tkeskita/BVtkNodes/blob/master/pip_install_vtk.md).
+Follow installation instructions in the [Docs](https://bvtknodes.readthedocs.io/en/latest/BVTKNodes.html#installation-of-vtk-for-blender:~:text=for%20Linux.-,Installation,-Install%20Blender%20(if). Also follow the [Workspace setup](https://bvtknodes.readthedocs.io/en/latest/BVTKNodes.html#installation-of-vtk-for-blender:~:text=Installation%20Instructions%20above.-,Workspace%20Setup,-BVTKNodes%20is%20used)
+## Example use with Liggghts
+- make a vtk folder and copy all vtk files that you want to visualize in it
+- each folder contains only one "type" of vtk files. so if you have vtks with geometry data, put them into a separate folder (this is currently a bug, see [customfilter.py](customfilter.py) @line 336)
+- then set up the nodes as seen below
+![Nodes](nodes_liggghts.png)
 
+you can apply automatic updates in the "inspect" panel on the right side of the BVTK-nodes window.
+
+Have fun!!
+
+## Forked README:
 
 BVTKNodes is a Blender add-on that wraps the Visualization Toolkit (VTK) library for scientific visualization in Blender.
 The high-level features of this add-on include:
