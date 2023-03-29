@@ -170,8 +170,8 @@ class BVTK_OT_NewText(bpy.types.Operator):
     def execute(self, context):
         text = bpy.data.texts.new(self.name)
         text.from_string(
-            "# Write VTK code for custom filter here\n" + \
-            "def custom_func(input_obj):\n" + \
+            "# Write VTK code for custom filter here\n" +
+            "def custom_func(input_obj):\n" +
             "    return input_obj"
         )
         flag = True
@@ -210,7 +210,8 @@ class BVTK_Node_MultiBlockLeaf(Node, BVTK_Node):
     def block_enum_generator(self, context=None):
         """Returns an enum list of block names"""
 
-        items = [("None", "Empty (clear value)", "Empty (clear value)", ENUM_ICON, 0)]
+        items = [("None", "Empty (clear value)",
+                  "Empty (clear value)", ENUM_ICON, 0)]
 
         (
             input_node,
@@ -334,13 +335,93 @@ def get_list_from_basename(basename, extension):
             if "bounding" in filename:
                 continue
             # Bug, check here if filename matches the file name start part
-            #if not re.split("\d+",basename)[0] in filename:
+            # if not re.split("\d+",basename)[0] in filename:
             #    continue
             numbers.append(filename)
 
     dir_and_filename_skeleton = dirname + sep
     numbers = natsort.natsorted(numbers, key=lambda y: y.lower())
     return numbers, dir_and_filename_skeleton
+
+
+def get_number_list_from_basename(basename, extension):
+    """Return a list of the number part of file names ending with
+    extension. Argument basename includes absolute or relative
+    directory path and a file name start part at the end.
+    It is assumed that file name is composed of the basename
+    (e.g. "/path/folder/data_" or "//data_" or "./data_" or just
+    "data_"), an integer number (with or without padding, not
+    necessarily continuous series), and an extension (e.g. ".vtk").
+    """
+    import os
+    import re
+    sep = os.path.sep  # Path folder separator character
+
+    # Get directory name and file name start part
+    if sep in basename:
+        dirname = bpy.path.abspath(basename)
+        # Unpack possible relative path parts
+        dirname = os.path.abspath(dirname)
+        # Remove file name start part from directory name
+        dirname = sep.join(dirname.split(sep)[0:-1])
+        # Separate the file name start part
+        filename_start_part = basename.split(sep)[-1].split(".")[0]
+    else:
+        dirname = "."
+        filename_start_part = basename.split(".")[0]
+
+    # l.debug("Parsed directory name: %r " % dirname)
+    # l.debug("File name start part: %r" % filename_start_part)
+
+    numbers = []
+    rec1 = re.compile(r"(.*?)(\d+)(\.\w+)$", re.M)
+
+    for root, dirs, filenames in os.walk(dirname):
+        for filename in filenames:
+            regex1 = rec1.search(filename)
+            if regex1:
+                name = regex1.group(1)
+                if name != filename_start_part:
+                    continue
+                extension = regex1.group(3)
+                if not filename.endswith(extension):
+                    continue
+                number = regex1.group(2)
+                numbers.append(str(number))
+
+    dir_and_filename_skeleton = dirname + sep + filename_start_part
+    numbers = sorted(numbers, key=int)
+    return numbers, dir_and_filename_skeleton
+
+
+def update_timestep_in_filename(filename, time_index):
+    """Return file name, where time definition integer string (assumed to
+    be located just before dot at end of file name) has been replaced
+    to argument time step number
+    """
+    import re
+
+    # Regex to match base name, number and file extension parts
+    rec1 = re.compile(r"(.*?)(\d+)(\.\w+)$", re.M)
+    regex1 = rec1.search(filename)
+    if regex1:
+        basename = regex1.group(1)
+        extension = regex1.group(3)
+        numbers, dir_and_filename_skeleton = \
+            get_number_list_from_basename(basename, extension)
+
+        # Data is looped from beginning after last data file. Subtract
+        # index by one to make frame 1 correspond to first data file
+        n = len(numbers)
+        number = numbers[(time_index - 1) % n]
+
+        newname = dir_and_filename_skeleton + str(number) + extension
+        l.debug("Time index %d corresponds to %r" % (time_index, newname))
+        return newname
+
+    l.warning("No time steps detected for " + filename)
+    return filename
+
 
 class BVTK_Node_TimeSelector(Node, BVTK_Node):
     """VTK time management node for time variant data. Display time sets,
@@ -349,19 +430,6 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
 
     bl_idname = "BVTK_Node_TimeSelectorType"
     bl_label = "Time Selector"
-    files = None
-
-    def update_timestep_in_filename(self,filename, time_index):
-        """Return file name from a list
-        """
-        if not hasattr(self,"files"):
-            self.files = None
-        #if self.files is None:
-        self.files, self.filename_skeleton = get_list_from_basename(filename, ".vtk")
-        return self.filename_skeleton+self.files[time_index]
-
-
-
 
     def get_time_values(self, context=None):
         """Return list of time step values from VTK Executive or None if no
@@ -397,7 +465,176 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
             return None
         try:
             filename = input_node.m_FileName
-            newname = self.update_timestep_in_filename(filename, self.time_index)
+            newname = update_timestep_in_filename(
+                filename, self.time_index * (self.skip_every + 1) + self.skip_start)
+            input_node.m_FileName = newname
+        except Exception as ex:
+            pass
+
+    def get_time_value(self):
+        """Return time value of current time index as a text string"""
+        time_values = self.get_time_values()
+        if not time_values:
+            return "Unknown"
+        size = len(time_values)
+        time_index = self.time_index % size
+        return str(time_values[time_index])
+
+    def activate_scene_time(self, context):
+        if self.use_scene_time:
+            self.time_index = context.scene.frame_current
+        self.outdate_vtk_status(context)
+
+    def time_index_update(self, context=None):
+        """Custom time_index out-of-date routine"""
+        time_values = self.get_time_values()
+        # l.debug("time_values " + str(time_values))
+        if not time_values:
+            self.update_time_unaware_reader_node()
+        self.outdate_vtk_status(context)
+
+    def set_skip_start_steps(self, context):
+        """Set number of steps to skip"""
+        self.update_time_unaware_reader_node()
+        self.outdate_vtk_status(context)
+
+    def set_skip_every_steps(self, context):
+        """Set number of steps to skip"""
+        self.update_time_unaware_reader_node()
+        self.outdate_vtk_status(context)
+
+    time_index: bpy.props.IntProperty(
+        name="Time Index", default=1, update=time_index_update
+    )
+    skip_start: bpy.props.IntProperty(
+        name="Start Timestep", default=0, update=set_skip_start_steps
+    )
+
+    skip_every: bpy.props.IntProperty(
+        name="Skip Every", default=0, update=set_skip_every_steps
+    )
+
+    use_scene_time: bpy.props.BoolProperty(
+        name="Use Scene Time", default=True, update=activate_scene_time
+    )
+    b_properties: bpy.props.BoolVectorProperty(
+        name="", size=3, get=BVTK_Node.get_b, set=BVTK_Node.set_b
+    )
+
+    def m_properties(self):
+        return ["time_index", "use_scene_time", "skip_start", "skip_every"]
+
+    def m_connections(self):
+        return (["input"], [], [], ["output"])
+
+    def apply_properties_special(self):
+        """Set time to VTK Executive"""
+        self.ui_message = "Time: " + self.get_time_value()
+        time_values = self.get_time_values()
+        if time_values:
+            (
+                input_node,
+                vtk_output_obj,
+                vtk_connection,
+            ) = self.get_input_node_and_output_vtk_objects("input")
+            if not vtk_connection or not vtk_connection.IsA("vtkAlgorithmOutput"):
+                self.ui_message = "No VTK connection or VTK Algorithm Output"
+                return "error"
+            prod = vtk_connection.GetProducer()
+            size = len(time_values)
+            if -size <= self.time_index < size:
+                if hasattr(prod, "UpdateTimeStep"):
+                    prod.UpdateTimeStep(time_values[self.time_index])
+                else:
+                    self.ui_message = (
+                        "Error: "
+                        + prod.__class__.__name__
+                        + " does not have 'UpdateTimeStep' method."
+                    )
+                    return "error"
+            else:
+                self.ui_message = (
+                    "Error: time index "
+                    + str(self.time_index)
+                    + " is out of index range (%d)" % (size - 1)
+                )
+                return "error"
+        return "up-to-date"
+
+    def get_vtk_output_object_special(self, socketname="output"):
+        """Pass on VTK output from input as output"""
+        (
+            input_node,
+            vtk_output_obj,
+            vtk_connection,
+        ) = self.get_input_node_and_output_vtk_objects()
+        return vtk_output_obj
+
+    def init_vtk(self):
+        self.set_vtk_status("out-of-date")
+        return None
+
+
+class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
+    """VTK time management node for time variant data. Display time sets,
+    time values and set time.
+    """
+
+    bl_idname = "BVTK_Node_TimeSelectorTypeLiggghts"
+    bl_label = "Time Selector Liggghts"
+    files = None
+
+    def update_timestep_in_filename(self, filename, time_index):
+        """Return file name from a list
+        """
+        if not hasattr(self, "files"):
+            self.files = None
+        # if self.files is None:
+        self.files, self.filename_skeleton = get_list_from_basename(
+            filename, ".vtk")
+        if time_index+self.skip_timesteps >= len(self.files):
+            self.ui_message = "Error: time index " + \
+                str(time_index+self.skip_timesteps) + " is out of range"
+
+            return filename
+        return self.filename_skeleton+self.files[time_index+self.skip_timesteps]
+
+    def get_time_values(self, context=None):
+        """Return list of time step values from VTK Executive or None if no
+        time values are found.
+        """
+        (
+            input_node,
+            vtk_output_obj,
+            vtk_connection,
+        ) = self.get_input_node_and_output_vtk_objects("input")
+        if not vtk_connection or not vtk_connection.IsA("vtkAlgorithmOutput"):
+            return None
+        prod = vtk_connection.GetProducer()
+        executive = prod.GetExecutive()
+        out_info = prod.GetOutputInformation(vtk_connection.GetIndex())
+        if not hasattr(executive, "TIME_STEPS"):
+            return None
+        time_values = out_info.Get(executive.TIME_STEPS())
+
+        # If reader is aware of time, it provides list of time step values.
+        # Added requirement len(time_values) > 1 because VTK 9.0.1
+        # vtkPolyDataReader started to return TIME_STEPS=0.0
+        # always (reader is not really time aware?).
+        if time_values and len(time_values) > 1:
+            return time_values
+
+    def update_time_unaware_reader_node(self):
+        """Hack to update time unaware readers: If file name of input node
+        contains number string at end, update it.
+        """
+        input_node, _ = self.get_input_node_and_socketname("input")
+        if not input_node:
+            return None
+        try:
+            filename = input_node.m_FileName
+            newname = self.update_timestep_in_filename(
+                filename, self.time_index)
             input_node.m_FileName = newname
         except Exception as ex:
             print("BVTK Error: ", ex)
@@ -425,18 +662,26 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
             self.update_time_unaware_reader_node()
         self.outdate_vtk_status(context)
 
+    def set_skip_steps(self, context):
+        """Set number of steps to skip"""
+        self.update_time_unaware_reader_node()
+        self.outdate_vtk_status(context)
+
     time_index: bpy.props.IntProperty(
         name="Time Index", default=0, update=time_index_update
     )
     use_scene_time: bpy.props.BoolProperty(
         name="Use Scene Time", default=True, update=activate_scene_time
     )
+    skip_timesteps: bpy.props.IntProperty(
+        name="Skip Timesteps", default=0, update=set_skip_steps
+    )
     b_properties: bpy.props.BoolVectorProperty(
         name="", size=3, get=BVTK_Node.get_b, set=BVTK_Node.set_b
     )
 
     def m_properties(self):
-        return ["time_index", "use_scene_time"]
+        return ["time_index", "use_scene_time", "skip_timesteps"]
 
     def m_connections(self):
         return (["input"], [], [], ["output"])
@@ -566,8 +811,10 @@ class BVTK_Node_GlobalTimeKeeper(
         self.get_persistent_storage()[
             "updated_nodes"
         ] = self.update_animated_properties(context.scene)
-        self.get_persistent_storage()["animated_properties"] = self.animated_properties
-        self.get_persistent_storage()["interpolation_modes"] = self.interpolation_modes
+        self.get_persistent_storage(
+        )["animated_properties"] = self.animated_properties
+        self.get_persistent_storage(
+        )["interpolation_modes"] = self.interpolation_modes
         self.get_persistent_storage()["animated_values"] = self.animated_values
         self.ui_message = "Global Time: {}".format(self.global_time)
 
@@ -605,12 +852,14 @@ class BVTK_Node_GlobalTimeKeeper(
                     row.label(
                         text="(%s)"
                         % [
-                            ",".join(("%.2f" % (single_val)) for single_val in val)
+                            ",".join(("%.2f" % (single_val))
+                                     for single_val in val)
                             for val in elem[3]
                         ]
                     )
                     row.label(
-                        text="(%s)" % ",".join(["%.2f" % (val) for val in elem[4]])
+                        text="(%s)" % ",".join(
+                            ["%.2f" % (val) for val in elem[4]])
                     )
                     row.label(text=elem[-1])
 
@@ -655,6 +904,8 @@ add_class(BVTK_Node_MultiBlockLeaf)
 TYPENAMES.append("BVTK_Node_MultiBlockLeafType")
 add_class(BVTK_Node_TimeSelector)
 TYPENAMES.append("BVTK_Node_TimeSelectorType")
+add_class(BVTK_Node_TimeSelectorLiggghts)
+TYPENAMES.append("BVTK_Node_TimeSelectorTypeLiggghts")
 add_class(BVTK_Node_GlobalTimeKeeper)
 TYPENAMES.append("BVTK_Node_GlobalTimeKeeperType")
 add_class(BVTK_Node_ImageDataObjectSource)
