@@ -324,7 +324,7 @@ def get_list_from_basename(basename, extension):
     else:
         dirname = "."
         filename_start_part = basename.split(".")[0]
-    print(dirname)
+
     # l.debug("Parsed directory name: %r " % dirname)
     # l.debug("File name start part: %r" % filename_start_part)
 
@@ -341,8 +341,6 @@ def get_list_from_basename(basename, extension):
 
     dir_and_filename_skeleton = dirname + sep
     numbers = natsort.natsorted(numbers, key=lambda y: y.lower())
-    print(numbers)
-    print(len(numbers))
     return numbers, dir_and_filename_skeleton
 
 
@@ -471,7 +469,10 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
                 filename, self.time_index * (self.skip_every + 1) + self.skip_start)
             input_node.m_FileName = newname
         except Exception as ex:
-            print("Exception in update_time_unaware_reader_node: " + str(ex))
+            self.ui_message = (
+                "Error: Exception in update_time_unaware_reader_node: \n"
+                + str(ex)
+            )
             pass
 
     def get_time_value(self):
@@ -640,8 +641,11 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
                 filename, self.time_index)
             input_node.m_FileName = newname
         except Exception as ex:
-            print("BVTK Error: ", ex)
-            pass
+            self.ui_message = (
+                "Error: Exception in update_time_unaware_reader_node: \n"
+                + str(ex)
+            )
+            return "error"
 
     def get_time_value(self):
         """Return time value of current time index as a text string"""
