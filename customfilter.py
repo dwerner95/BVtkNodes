@@ -324,7 +324,7 @@ def get_list_from_basename(basename, extension):
     else:
         dirname = "."
         filename_start_part = basename.split(".")[0]
-
+    print(dirname)
     # l.debug("Parsed directory name: %r " % dirname)
     # l.debug("File name start part: %r" % filename_start_part)
 
@@ -341,6 +341,8 @@ def get_list_from_basename(basename, extension):
 
     dir_and_filename_skeleton = dirname + sep
     numbers = natsort.natsorted(numbers, key=lambda y: y.lower())
+    print(numbers)
+    print(len(numbers))
     return numbers, dir_and_filename_skeleton
 
 
@@ -469,25 +471,26 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
                 filename, self.time_index * (self.skip_every + 1) + self.skip_start)
             input_node.m_FileName = newname
         except Exception as ex:
+            print("Exception in update_time_unaware_reader_node: " + str(ex)
             pass
 
     def get_time_value(self):
         """Return time value of current time index as a text string"""
-        time_values = self.get_time_values()
+        time_values=self.get_time_values()
         if not time_values:
             return "Unknown"
-        size = len(time_values)
-        time_index = self.time_index % size
+        size=len(time_values)
+        time_index=self.time_index % size
         return str(time_values[time_index])
 
     def activate_scene_time(self, context):
         if self.use_scene_time:
-            self.time_index = context.scene.frame_current
+            self.time_index=context.scene.frame_current
         self.outdate_vtk_status(context)
 
     def time_index_update(self, context=None):
         """Custom time_index out-of-date routine"""
-        time_values = self.get_time_values()
+        time_values=self.get_time_values()
         # l.debug("time_values " + str(time_values))
         if not time_values:
             self.update_time_unaware_reader_node()
@@ -529,31 +532,31 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
 
     def apply_properties_special(self):
         """Set time to VTK Executive"""
-        self.ui_message = "Time: " + self.get_time_value()
-        time_values = self.get_time_values()
+        self.ui_message="Time: " + self.get_time_value()
+        time_values=self.get_time_values()
         if time_values:
             (
                 input_node,
                 vtk_output_obj,
                 vtk_connection,
-            ) = self.get_input_node_and_output_vtk_objects("input")
+            )=self.get_input_node_and_output_vtk_objects("input")
             if not vtk_connection or not vtk_connection.IsA("vtkAlgorithmOutput"):
-                self.ui_message = "No VTK connection or VTK Algorithm Output"
+                self.ui_message="No VTK connection or VTK Algorithm Output"
                 return "error"
-            prod = vtk_connection.GetProducer()
-            size = len(time_values)
+            prod=vtk_connection.GetProducer()
+            size=len(time_values)
             if -size <= self.time_index < size:
                 if hasattr(prod, "UpdateTimeStep"):
                     prod.UpdateTimeStep(time_values[self.time_index])
                 else:
-                    self.ui_message = (
+                    self.ui_message=(
                         "Error: "
                         + prod.__class__.__name__
                         + " does not have 'UpdateTimeStep' method."
                     )
                     return "error"
             else:
-                self.ui_message = (
+                self.ui_message=(
                     "Error: time index "
                     + str(self.time_index)
                     + " is out of index range (%d)" % (size - 1)
@@ -567,7 +570,7 @@ class BVTK_Node_TimeSelector(Node, BVTK_Node):
             input_node,
             vtk_output_obj,
             vtk_connection,
-        ) = self.get_input_node_and_output_vtk_objects()
+        )=self.get_input_node_and_output_vtk_objects()
         return vtk_output_obj
 
     def init_vtk(self):
@@ -580,20 +583,20 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
     time values and set time.
     """
 
-    bl_idname = "BVTK_Node_TimeSelectorTypeLiggghts"
-    bl_label = "Time Selector Liggghts"
-    files = None
+    bl_idname="BVTK_Node_TimeSelectorTypeLiggghts"
+    bl_label="Time Selector Liggghts"
+    files=None
 
     def update_timestep_in_filename(self, filename, time_index):
         """Return file name from a list
         """
         if not hasattr(self, "files"):
-            self.files = None
+            self.files=None
         # if self.files is None:
-        self.files, self.filename_skeleton = get_list_from_basename(
+        self.files, self.filename_skeleton=get_list_from_basename(
             filename, ".vtk")
         if time_index+self.skip_timesteps >= len(self.files):
-            self.ui_message = "Error: time index " + \
+            self.ui_message="Error: time index " + \
                 str(time_index+self.skip_timesteps) + " is out of range"
 
             return filename
@@ -607,15 +610,15 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
             input_node,
             vtk_output_obj,
             vtk_connection,
-        ) = self.get_input_node_and_output_vtk_objects("input")
+        )=self.get_input_node_and_output_vtk_objects("input")
         if not vtk_connection or not vtk_connection.IsA("vtkAlgorithmOutput"):
             return None
-        prod = vtk_connection.GetProducer()
-        executive = prod.GetExecutive()
-        out_info = prod.GetOutputInformation(vtk_connection.GetIndex())
+        prod=vtk_connection.GetProducer()
+        executive=prod.GetExecutive()
+        out_info=prod.GetOutputInformation(vtk_connection.GetIndex())
         if not hasattr(executive, "TIME_STEPS"):
             return None
-        time_values = out_info.Get(executive.TIME_STEPS())
+        time_values=out_info.Get(executive.TIME_STEPS())
 
         # If reader is aware of time, it provides list of time step values.
         # Added requirement len(time_values) > 1 because VTK 9.0.1
@@ -628,35 +631,35 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
         """Hack to update time unaware readers: If file name of input node
         contains number string at end, update it.
         """
-        input_node, _ = self.get_input_node_and_socketname("input")
+        input_node, _=self.get_input_node_and_socketname("input")
         if not input_node:
             return None
         try:
-            filename = input_node.m_FileName
-            newname = self.update_timestep_in_filename(
+            filename=input_node.m_FileName
+            newname=self.update_timestep_in_filename(
                 filename, self.time_index)
-            input_node.m_FileName = newname
+            input_node.m_FileName=newname
         except Exception as ex:
             print("BVTK Error: ", ex)
             pass
 
     def get_time_value(self):
         """Return time value of current time index as a text string"""
-        time_values = self.get_time_values()
+        time_values=self.get_time_values()
         if not time_values:
             return "Unknown"
-        size = len(time_values)
-        time_index = self.time_index % size
+        size=len(time_values)
+        time_index=self.time_index % size
         return str(time_values[time_index])
 
     def activate_scene_time(self, context):
         if self.use_scene_time:
-            self.time_index = context.scene.frame_current
+            self.time_index=context.scene.frame_current
         self.outdate_vtk_status(context)
 
     def time_index_update(self, context=None):
         """Custom time_index out-of-date routine"""
-        time_values = self.get_time_values()
+        time_values=self.get_time_values()
         # l.debug("time_values " + str(time_values))
         if not time_values:
             self.update_time_unaware_reader_node()
@@ -688,31 +691,31 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
 
     def apply_properties_special(self):
         """Set time to VTK Executive"""
-        self.ui_message = "Time: " + self.get_time_value()
-        time_values = self.get_time_values()
+        self.ui_message="Time: " + self.get_time_value()
+        time_values=self.get_time_values()
         if time_values:
             (
                 input_node,
                 vtk_output_obj,
                 vtk_connection,
-            ) = self.get_input_node_and_output_vtk_objects("input")
+            )=self.get_input_node_and_output_vtk_objects("input")
             if not vtk_connection or not vtk_connection.IsA("vtkAlgorithmOutput"):
-                self.ui_message = "No VTK connection or VTK Algorithm Output"
+                self.ui_message="No VTK connection or VTK Algorithm Output"
                 return "error"
-            prod = vtk_connection.GetProducer()
-            size = len(time_values)
+            prod=vtk_connection.GetProducer()
+            size=len(time_values)
             if -size <= self.time_index < size:
                 if hasattr(prod, "UpdateTimeStep"):
                     prod.UpdateTimeStep(time_values[self.time_index])
                 else:
-                    self.ui_message = (
+                    self.ui_message=(
                         "Error: "
                         + prod.__class__.__name__
                         + " does not have 'UpdateTimeStep' method."
                     )
                     return "error"
             else:
-                self.ui_message = (
+                self.ui_message=(
                     "Error: time index "
                     + str(self.time_index)
                     + " is out of index range (%d)" % (size - 1)
@@ -726,7 +729,7 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
             input_node,
             vtk_output_obj,
             vtk_connection,
-        ) = self.get_input_node_and_output_vtk_objects()
+        )=self.get_input_node_and_output_vtk_objects()
         return vtk_output_obj
 
     def init_vtk(self):
@@ -742,8 +745,8 @@ class BVTK_Node_TimeSelectorLiggghts(Node, BVTK_Node):
 class BVTK_Node_ImageDataObjectSource(Node, BVTK_Node):
     """BVTK node to generate a new vtkImageData object"""
 
-    bl_idname = "BVTK_Node_ImageDataObjectSourceType"
-    bl_label = "VTKImageData Object Source"
+    bl_idname="BVTK_Node_ImageDataObjectSourceType"
+    bl_label="VTKImageData Object Source"
 
     origin: bpy.props.FloatVectorProperty(
         name="Origin",
@@ -780,9 +783,9 @@ class BVTK_Node_ImageDataObjectSource(Node, BVTK_Node):
         """Generate a new vtkImageData object"""
         from mathutils import Vector
 
-        img = vtk.vtkImageData()
+        img=vtk.vtkImageData()
         img.SetOrigin(self.origin)
-        c = self.multiplier
+        c=self.multiplier
         img.SetDimensions([round(c * dim) for dim in self.dimensions])
         img.SetSpacing(Vector(self.spacing) / c)
         return img
@@ -804,19 +807,19 @@ class BVTK_Node_GlobalTimeKeeper(
     to the scene time.
     """
 
-    bl_idname = "BVTK_Node_GlobalTimeKeeperType"
-    bl_label = "Global Time Keeper"
+    bl_idname="BVTK_Node_GlobalTimeKeeperType"
+    bl_label="Global Time Keeper"
 
     def update_time(self, context):
         self.get_persistent_storage()[
             "updated_nodes"
-        ] = self.update_animated_properties(context.scene)
+        ]=self.update_animated_properties(context.scene)
         self.get_persistent_storage(
-        )["animated_properties"] = self.animated_properties
+        )["animated_properties"]=self.animated_properties
         self.get_persistent_storage(
-        )["interpolation_modes"] = self.interpolation_modes
-        self.get_persistent_storage()["animated_values"] = self.animated_values
-        self.ui_message = "Global Time: {}".format(self.global_time)
+        )["interpolation_modes"]=self.interpolation_modes
+        self.get_persistent_storage()["animated_values"]=self.animated_values
+        self.ui_message="Global Time: {}".format(self.global_time)
 
     global_time: bpy.props.IntProperty(update=update_time, name="Global Time")
     invalid: bpy.props.BoolProperty(name="Is Node Valid")
@@ -829,25 +832,25 @@ class BVTK_Node_GlobalTimeKeeper(
             return "Error: You already have a Global Time Keeper node"
 
     def draw_buttons_special(self, context, layout):
-        storage = self.get_persistent_storage()
+        storage=self.get_persistent_storage()
         if "animated_properties" in storage:
-            animated_properties = storage["animated_properties"]
+            animated_properties=storage["animated_properties"]
 
             if animated_properties is not None and len(animated_properties) > 0:
-                row = layout.row()
+                row=layout.row()
                 row.label(text="Animated properties: ")
-                row = layout.row()
+                row=layout.row()
                 row.label(text="Node")
                 row.label(text="Attr.")
                 row.label(text="Keyframes")
                 row.label(text="Keyframe Vals")
                 row.label(text="Current Val")
                 row.label(text="Interpol. Mode")
-                modes = storage["interpolation_modes"]
-                animated_values = storage["animated_values"]
+                modes=storage["interpolation_modes"]
+                animated_values=storage["animated_values"]
 
                 for elem in animated_properties.values():
-                    row = layout.row()
+                    row=layout.row()
                     [row.label(text=str(val)) for val in elem[:3]]
                     row.label(
                         text="(%s)"
@@ -865,18 +868,18 @@ class BVTK_Node_GlobalTimeKeeper(
 
     def apply_properties_special(self):
         self.update_time(bpy.context)
-        self.ui_message = "Global Time: {}".format(self.global_time)
+        self.ui_message="Global Time: {}".format(self.global_time)
         return "up-to-date"
 
     def set_new_time(self, frame):
         """Set new time from frame number. Called from on_frame_change().
         """
-        self.global_time = frame
+        self.global_time=frame
         return self.get_persistent_storage()["updated_nodes"]
 
     def init_vtk(self):
         if self.name != self.bl_label:
-            self.invalid = True
+            self.invalid=True
             raise RuntimeError(
                 "A Global Time Keeper already exists. There can be only one Global Time Keeper per scene"
             )
@@ -888,15 +891,15 @@ class BVTK_Node_GlobalTimeKeeper(
         AnimationHelper.setup(self)
         assert self.name == self.bl_label
         self.bl_label
-        persistent_storage["nodes"][self.bl_label] = {}  # pass
-        self.invalid = False
+        persistent_storage["nodes"][self.bl_label]={}  # pass
+        self.invalid=False
 
     def copy(self, node):
         self.setup()
 
 
 # Add classes and menu items
-TYPENAMES = []
+TYPENAMES=[]
 add_class(BVTK_Node_CustomFilter)
 TYPENAMES.append("BVTK_Node_CustomFilterType")
 add_ui_class(BVTK_OT_NewText)
@@ -911,5 +914,5 @@ TYPENAMES.append("BVTK_Node_GlobalTimeKeeperType")
 add_class(BVTK_Node_ImageDataObjectSource)
 TYPENAMES.append("BVTK_Node_ImageDataObjectSourceType")
 
-menu_items = [NodeItem(x) for x in TYPENAMES]
+menu_items=[NodeItem(x) for x in TYPENAMES]
 CATEGORIES.append(BVTK_NodeCategory("Custom", "Custom", items=menu_items))
