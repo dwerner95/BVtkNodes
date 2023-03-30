@@ -97,8 +97,8 @@ This version was demonstrated in the
 2. `tkeskita/bvtknodes <https://github.com/tkeskita/BVtkNodes>`_
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Upgraded and developed version for Blender 2.93 LTS series using VTK
-9.1.0. Uses a new update system and a new mesh generator node
+Upgraded and developed version for Blender 3.3 LTS series using VTK
+9.2.2. Uses a new update system and a new mesh generator node
 *VTK To Blender Mesh* instead of the legacy *VKT To Blender* node.
 
 .. note::
@@ -509,8 +509,7 @@ options:
   used for the image.
 
 **Tip:** You may use e.g. *vtkResampleToImage* to convert planar data into
-VTK image data, see `VTK To Blender Image example
-<https://github.com/tkeskita/BVtkNodes/issues/85#issuecomment-1140251002>`_.
+VTK image data, see example node tree *cubeflow_cut_plane_to_image*.
 
 
 VTK To Blender Particles
@@ -552,21 +551,31 @@ memory, a large number of points can be visualized efficiently.
 - **Initialize** operator will initialize the Blender Particle System
   with the number of particles specified in *Particle Count*. This
   operator must be run before node pipeline is updated.
-- **Update** executes the node pipeline connected to this node.
+- **Update Node** updates the node pipeline connected to this node.
 
 **Usage**: First, create a glyph object. Then input the data in node
-fields, and run **Initialize**. After that, every change of frame
-number in Blender Timeline updates the particle data. Note:
+fields, and run **Initialize**. After that, every run of Update Node
+updates the particle data. Note:
 
-- Change of frame number in Blender Timeline is required to update
-  particle data correctly.
+- Running Update Node after changing frame number in Blender Timeline
+  is required to update particle data correctly.
 - Particles may not show up updated in the 3D Viewport after
   frame change, but they should be still rendered correctly.
+  Left-clicking on 3D viewport should update the view.
 - Particle colors show up correctly only in Rendered Viewport Shading
   mode, and only using Cycles Render Engine.
 - It is not possible to modify particles in Blender. You need to do
   all modifications on VTK side prior to using this node.
 
+The example tree *cubeflow_particle_instancing* illustrates the usage
+of this node:
+
+- Run **Update Node** on *VTK To Blender Mesh* node.
+- Run **Initialize** on *VTK To Blender Particles* node.
+- Run **Update Node** on *VTK To Blender Particles* node.
+- Left-click on 3D viewport to force update of the view.
+- Change the Render Engine to Cycles.
+- Render Image to see results (with correct colors).
 
 .. _VTKToBlenderVolume:
 
@@ -695,11 +704,14 @@ Preview** or **Rendered**.
   name. Second character is not used. For example, "P_pressure"
   specifies coloring by point data in "pressure" array. If preceding
   nodes are up-to-date, the dropdown menu on the right will provide a
-  list for selection.
+  list for selection. If the array is a vector array, then magnitude of
+  the vector is used for the color scale.
 - **Auto Range** will update the value range for the data array
   specified in *Color By* automatically during update, if enabled.
 - **min** and **max** specify the value range (if *Auto Range* is disabled).
 - **output** connector should be attached to a *VTK To Blender Mesh* node.
+
+
 
 Multi Block Leaf
 ^^^^^^^^^^^^^^^^
@@ -822,6 +834,75 @@ VTK. Please refer to
 for class specific information.
 
 
+Scripting in Blender
+--------------------
+
+You can create a Python script to create nodes, change node values,
+link the nodes and run updates. Copy-paste the following code to a
+Text Block in Blender Scripting Workspace and Run Script to create
+`image.png` render of a cone. You can enable *Python Tooltips* in
+Blender *Preferences* *Interface* section to see variable name when
+hovering over a node setting in node tree.
+
+.. code:: python
+
+  # BVTKNodes Blender Python Scripting Example
+  import bpy
+
+  node_tree = bpy.data.node_groups.new("BVTKNodeTree", type="BVTK_NodeTreeType")
+  nodes = bpy.data.node_groups["BVTKNodeTree"].nodes
+  links = bpy.data.node_groups["BVTKNodeTree"].links
+
+  # Create nodes
+  cone = nodes.new(type="VTKConeSourceType")
+  cone.m_Height = 3.0
+  cone.m_Radius = 1.5
+  elevation = nodes.new(type="VTKElevationFilterType")
+  mapper = nodes.new(type="BVTK_Node_ColorMapperType")
+  mapper.color_by = "P_Elevation"
+  ramp = nodes.new(type="BVTK_Node_ColorRampType")
+  vtk_to_blender = nodes.new(type="BVTK_Node_VTKToBlenderMeshType")
+  vtk_to_blender.m_Name = "cone"
+  vtk_to_blender.generate_material = True
+
+  # Link nodes
+  links.new(cone.outputs["output"], elevation.inputs["input"])
+  links.new(elevation.outputs["output"], mapper.inputs["input"])
+  links.new(ramp.outputs["lookupTable"], mapper.inputs["lookuptable"])
+  links.new(mapper.outputs["output"], vtk_to_blender.inputs["input"])
+
+  # Update from the final node
+  vtk_to_blender.update_vtk()
+
+  # Print out information
+  ob = bpy.data.objects["cone"]
+  print ("Mesh has %d vertices" % len(ob.data.vertices))
+  print ("Mesh has %d faces" % len(ob.data.polygons))
+
+  # Add camera
+  camera_data = bpy.data.cameras.new("Camera 1")
+  camera_object = bpy.data.objects.new("Camera 1", camera_data)
+  camera_object.location = (10, -10, 10)
+  camera_object.rotation_euler = (1.0, 0, 0.8)  # radians
+  bpy.context.scene.collection.objects.link(camera_object)
+  bpy.context.scene.camera = camera_object
+
+  # Add light
+  light_data = bpy.data.lights.new(name="Light 1", type="POINT")
+  light_data.energy = 5000
+  light_object = bpy.data.objects.new(name="Light 1", object_data=light_data)
+  light_object.location = (10, 5, 10)
+  bpy.context.collection.objects.link(light_object)
+
+  # Update scene, if needed
+  dg = bpy.context.evaluated_depsgraph_get()
+  dg.update()
+
+  # Render an image
+  bpy.context.scene.render.filepath = "image.png"
+  bpy.ops.render.render(write_still = True)
+
+
 Customization of Node Python Code
 ---------------------------------
 
@@ -916,6 +997,19 @@ Please check this list first though:
   after a Time Selector node, a Multi Block Leaf node (if you use
   one), or directly after a data reader node.
 * If possible, please provide a small example data file.
+* This warning indicates that the add-on is not enabled in Blender Preferences:
+
+  .. code::
+
+    WARN (bpy.rna): source/blender/python/intern/bpy_rna.c:1334 pyrna_enum_to_py:
+    current value '-1' matches no enum in 'SpaceNodeEditor', '(null)', 'tree_type'
+
+
+
+Feedback
+--------
+
+If you use this add-on, please star this project in GitHub!
 
 
 Special Use Cases

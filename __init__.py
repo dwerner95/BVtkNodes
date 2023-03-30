@@ -7,8 +7,8 @@
 bl_info = {
     "name": "BVTKNodes, Blender VTK Nodes",
     "author": "BVTKNodes Developers",
-    "version": (0, 9),
-    "blender": (2, 83, 0),
+    "version": (0, 10),
+    "blender": (3, 3, 0),
     "location": "BVTK Node Tree Editor > New",
     "description": "Create and execute VTK pipelines in Blender Node Editor",
     "warning": "Experimental",
@@ -424,9 +424,10 @@ def register():
     bpy.types.Scene.bvtknodes_settings = bpy.props.PointerProperty(
         type=BVTKNodes_Settings
     )
-
+    bpy.types.CONSOLE_HT_header.append(b_inspect.draw_console_header)
 
 def unregister():
+    bpy.types.CONSOLE_HT_header.remove(b_inspect.draw_console_header)
     nodeitems_utils.unregister_node_categories("VTK_NODES")
     for c in reversed(sorted(core.CLASSES.keys())):
         bpy.utils.unregister_class(core.CLASSES[c])
