@@ -1026,11 +1026,7 @@ def reset_particle_material(ob, matname):
 
 class BVTK_Node_VTKToBlenderVolume(Node, BVTK_Node):
     """Convert output from VTK Node to Blender Volume Object.
-    Note: Not upgraded to new core.py. Requires pyopenvdb, which is
-    not (at least not yet) inlcuded in Blender by default.
-    https://devtalk.blender.org/t/build-pyopenvdb-as-part-of-make-deps/14148
-    Currently it is better to maintain and use VTK To OpenVDB Exporter node,
-    at least until such a time when pyopenvdb is included in Blender.
+    Requires pyopenvdb, which is included in Blender 3.6 by default.
     """
 
     bl_idname = "BVTK_Node_VTKToBlenderVolumeType"
@@ -1051,17 +1047,6 @@ class BVTK_Node_VTKToBlenderVolume(Node, BVTK_Node):
         name="Export File Sequence", default=False
     )
 
-    def start_scan(self, context):
-        if not context:
-            return
-        if not self.auto_update:
-            return
-        bpy.ops.node.bvtk_auto_update_scan(
-            node_name=self.name, tree_name=context.space_data.node_tree.name
-        )
-
-    auto_update: bpy.props.BoolProperty(default=False, update=start_scan)
-
     def m_properties(self):
         return [
             "ob_name",
@@ -1077,7 +1062,7 @@ class BVTK_Node_VTKToBlenderVolume(Node, BVTK_Node):
     def m_connections(self):
         return (["input"], [], [], [])
 
-    def draw_buttons(self, context, layout):
+    def draw_buttons_special(self, context, layout):
         global with_pyopenvdb
         if not with_pyopenvdb:
             layout.label(text="Error: Missing pyopenvdb!")
@@ -1092,32 +1077,34 @@ class BVTK_Node_VTKToBlenderVolume(Node, BVTK_Node):
         # layout.prop(self, 'use_copy_from_array')
         layout.prop(self, "generate_material")
         layout.prop(self, "export_file_sequence")
-        layout.separator()
-        layout.operator("node.bvtk_node_update", text="Update").node_path = node_path(
+        layout.operator("node.bvtk_node_force_update_upstream").node_path = node_path(
             self
         )
 
-    def update_volume(self):
+    def apply_properties_special(self):
         """Update Blender Volume data from vtkImageData"""
-        input_node, vtkobj = self.get_input_node("input")
+        (
+            input_node,
+            vtk_output_obj,
+            vtk_connection,
+        ) = self.get_input_node_and_output_vtk_objects()
         l.debug("Updating Volume Object %r" % self.ob_name)
-        if vtkobj:
-            vtkdata = resolve_algorithm_output(vtkobj)
-            if not vtkdata:
-                l.error("No vtkdata!")
-                return
-            if not issubclass(vtkdata.__class__, vtk.vtkImageData):
-                l.error("Data is not vtkImageData!")
-                return
 
-            vtk_image_data_to_volume_object(self, vtkdata)
-            update_3d_view()
+        if not vtk_output_obj:
+            self.ui_message = "Error: No VTK data on input!"
+            return "error"
 
-    def update_cb(self):
-        self.update_volume()
+        if not issubclass(vtk_output_obj.__class__, vtk.vtkImageData):
+            self.ui_message = "Error: Input is not vtkImageData!"
+            return "error"
 
-    def apply_properties(self, vtkobj):
-        pass
+        vtk_image_data_to_volume_object(self, vtk_output_obj)
+        update_3d_view()
+        return "up-to-date"
+
+    def init_vtk(self):
+        self.set_vtk_status("out-of-date")
+        return None
 
 
 def create_grid_from_data_array(
@@ -1619,10 +1606,13 @@ def face_unwrap(bm, vtk_obj, array_name, vrange):
             tup = array_data.GetTuple(face.index)
             v = 0.0
             # Get Euclidean norm (magnitude) of the data vector.
-            # This should leave scalars unchanged
-            for i in range(num_comps):
-                v += tup[i] ** 2
-            v = v ** 0.5
+            # Leave scalars unchanged.
+            if num_comps == 1:
+                v = tup[0]
+            else:
+                for i in range(num_comps):
+                    v += tup[i] ** 2
+                v = v ** 0.5
             v = (v - minr) / (maxr - minr)
             v = min(0.999, max(0.001, v))  # Force value inside range
             loop[uv_layer].uv = (v, 0.5)
@@ -1641,10 +1631,13 @@ def point_unwrap(bm, vtk_obj, array_name, vrange, vimap):
             tup = array_data.GetTuple(vimap[loop.vert.index])
             v = 0.0
             # Get Euclidean norm (magnitude) of the data vector.
-            # This should leave scalars unchanged
-            for i in range(num_comps):
-                v += tup[i] ** 2
-            v = v ** 0.5
+            # Leave scalars unchanged.
+            if num_comps == 1:
+                v = tup[0]
+            else:
+                for i in range(num_comps):
+                    v += tup[i] ** 2
+                v = v ** 0.5
             v = (v - minr) / (maxr - minr)
             v = min(0.999, max(0.001, v))  # Force value inside range
             loop[uv_layer].uv = (v, 0.5)
@@ -1926,10 +1919,8 @@ TYPENAMES.append("BVTK_Node_VTKToBlenderParticlesType")
 add_class(BVTK_Node_VTKToBlenderImage)
 TYPENAMES.append("BVTK_Node_VTKToBlenderImageType")
 
-# Disabled VTK To Blender Volume, it's not upgraded to new core.py.
-# You can use VTK To OpenVDB Exporter node instead.
-# add_class(BVTK_Node_VTKToBlenderVolume)
-# TYPENAMES.append('BVTK_Node_VTKToBlenderVolumeType')
+add_class(BVTK_Node_VTKToBlenderVolume)
+TYPENAMES.append('BVTK_Node_VTKToBlenderVolumeType')
 add_class(BVTK_Node_VTKToOpenVDBExporter)
 TYPENAMES.append("BVTK_Node_VTKToOpenVDBExporterType")
 menu_items = [NodeItem(x) for x in TYPENAMES]

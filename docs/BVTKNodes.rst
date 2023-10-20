@@ -97,9 +97,9 @@ This version was demonstrated in the
 2. `tkeskita/bvtknodes <https://github.com/tkeskita/BVtkNodes>`_
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Upgraded and developed version for Blender 3.3 LTS series using VTK
-9.2.2. Uses a new update system and a new mesh generator node
-*VTK To Blender Mesh* instead of the legacy *VKT To Blender* node.
+Upgraded and developed version for Blender 3.6 LTS series using VTK
+9.2.6. Uses a new update system and a new mesh generator node
+*VTK To Blender Mesh* instead of the legacy *VTK To Blender* node.
 
 .. note::
    
@@ -203,6 +203,11 @@ shown in `Introduction`_. For other examples, see `Tree`_ tab below.
 - Create node setup as shown in the image in `Introduction`_. You can
   add nodes from Add menu or by shortcut key shift + A. Link nodes by
   dragging from a connector to another connector.
+
+  .. note:: Search bar at top of the Add Menu does not find the VTK
+     Nodes in Blender 3.6. Please use the Menu Search (shortcut key
+     F3) instead.
+
 - Set **FileName** in *vtkXMLImageDataReader* node by clicking on the
   folder icon and select *head.vti* file.
 - In *vtkContourFilter* node click plus icon to add a contour value,
@@ -582,14 +587,13 @@ of this node:
 VTK To Blender Volume
 ^^^^^^^^^^^^^^^^^^^^^
 
-This node is currently obsoleted, since it requires
-`custom build of Blender dependency libraries
-<https://devtalk.blender.org/t/build-pyopenvdb-as-part-of-make-deps/14148>`_
-to enable `pyopenvdb` in Blender, in order to convert 3D VTK image
-data (*vtkImageData*) into OpenVDB grids. Instead, please use the *VTK
-To OpenVDB Exporter* node described next. If `pyopenvdb` becomes
-a standard part of Blender one day, this node can be resurrected.
+This node converts 3D VTK image data (*vtkImageData*) into OpenVDB
+grids. The VDB data is then automatically imported into Blender as a
+Volume Object, ready to be used in volumetric rendering using the
+*Principled Volume Shader*.  This node requires `pyopenvdb` in
+Blender, now available in Blender version 3.6.
 
+Please see VTK To OpenVDB Exporter below for description of field names.
 
 .. _VTKToOpenVDBExporter:
 
